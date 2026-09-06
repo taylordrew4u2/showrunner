@@ -177,7 +177,7 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
         <section className="signing__panel">
           {error && <p className="signing__error" role="alert">{error}</p>}
 
-          <label className="signing__field">
+          <label className="signing__field signing__field--name">
             <span>Your full name</span>
             <input
               type="text"
