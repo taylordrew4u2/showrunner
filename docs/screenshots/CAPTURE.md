@@ -37,6 +37,9 @@ it may populate an empty workspace.
 | `HEADLESS` | `true` | `false` to watch it run |
 | `PW_CHROMIUM_PATH` | unset | A Chromium already on disk, for sandboxes that cannot download Playwright's pinned build |
 
+Nothing else is needed — no ffmpeg, no image tooling. The animated hero is
+encoded in-process.
+
 ## What gets captured
 
 Everything is shot at 430×932 with `deviceScaleFactor: 2`, so the images are @2x
@@ -49,6 +52,7 @@ and the app is in the phone layout it is designed around.
 | `schedule.png` | The run-of-show builder |
 | `performer-profile.png` | A performer's profile |
 | `run-show.png` | Full-screen live mode |
+| `run-show.gif` | The README's hero — live mode running, 30 frames at 5 fps |
 | `rolodex.png` | The Rolodex, with its show-type-aware wording |
 | `settings.png` | Settings — theme, brand, and the folded workspace details |
 | `more.png` | The More hub |
@@ -61,10 +65,16 @@ and the app is in the phone layout it is designed around.
 - **`signing-receipt.png` is an element shot, not a full page.** Headless
   Chromium does not reliably paint a PDF inside an `<object>`, and a blank
   document pane above the receipt would say something untrue about the app.
-- **There is no animated demo.** The README's hero used to be a GIF, dropped
-  when it went stale — it still showed a gold accent and a navigation bar the
-  app no longer has. Re-recording one is a genuine improvement; a screenshot of
-  an app that no longer exists is not.
+- **The animated hero is built from screenshots, not from video.** Playwright's
+  recorder produces WebM, and the ffmpeg it ships is built only for that — no
+  gif encoder, and none of the palette filters a decent GIF needs. So the
+  frames are ordinary screenshots and [`gifenc`](https://github.com/mattdesl/gifenc)
+  encodes them here, which means the script needs nothing installed beyond its
+  own dependencies. The browser decodes each PNG through a canvas, which saves
+  a decoder dependency for the sake of one image.
+- **One palette is shared across the clip.** The screen is mostly a fixed dark
+  interface; a palette per frame both inflates the file and makes the
+  background shimmer between frames.
 - **There is no viewer-link shot.** Capturing it needs the show's viewer token,
   which only exists once the live screen has published, and automating that was
   not worth the coupling. Worth adding if the flow settles.

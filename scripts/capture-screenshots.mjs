@@ -30,7 +30,10 @@
 
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
+// gifenc ships CommonJS, so its exports arrive on the default import.
+import gifenc from 'gifenc';
 import { tmpdir } from 'node:os';
+const { GIFEncoder, quantize, applyPalette } = gifenc;
 import { join } from 'node:path';
 // The same in-memory backend the end-to-end suite runs against, so the
 // screenshots and the tests exercise one implementation rather than two.
@@ -333,6 +336,94 @@ async function captureRolodexAndSettings(page) {
 }
 
 
+
+
+/**
+ * The README's hero: Run Show actually running.
+ *
+ * A still cannot show the thing that matters about live mode — the clock
+ * moving and the running order advancing under it — so this drives the real
+ * screen and records what it does.
+ *
+ * Frames come from ordinary screenshots rather than Playwright's video
+ * recorder, because the recorder produces WebM and the ffmpeg it ships is
+ * built only for that: no gif encoder, and no palette filters. Encoding here
+ * instead means the script needs nothing installed beyond its own
+ * dependencies. The browser does the PNG decoding, which saves a decoder
+ * dependency for the sake of one image.
+ */
+async function captureRunShowGif(page) {
+  const WIDTH = 300;
+  const DELAY_MS = 200;
+
+  await page.locator('.show-detail__run-show').click();
+  await page.locator('.run-show').waitFor();
+  const start = page.getByRole('button', { name: /^Start$/ });
+  if (await start.count()) await start.click();
+
+  // Hold on the running clock, then advance twice — the two things live mode
+  // is for. A press and the frame after it land in the same beat, so the
+  // change reads as a response rather than a jump.
+  const beats = [
+    ...Array(10).fill(null),
+    'ArrowRight', ...Array(9).fill(null),
+    'ArrowRight', ...Array(9).fill(null),
+  ];
+  const frames = [];
+  for (const key of beats) {
+    if (key) await page.keyboard.press(key);
+    frames.push(await page.screenshot());
+    await page.waitForTimeout(DELAY_MS - 20); // screenshots cost ~20ms
+  }
+
+  // Decode in the browser: a canvas turns each PNG into the RGBA the encoder
+  // wants, and scales it down on the way.
+  const helper = await page.context().newPage();
+  await helper.setContent('<canvas id="c"></canvas>');
+  const encoder = GIFEncoder();
+  let palette = null;
+  for (const png of frames) {
+    const frame = await helper.evaluate(
+      async ({ b64, width }) => {
+        const img = new Image();
+        await new Promise((r) => { img.onload = r; img.src = 'data:image/png;base64,' + b64; });
+        const height = Math.round(img.height * (width / img.width));
+        const canvas = document.getElementById('c');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+        const pixels = ctx.getImageData(0, 0, width, height).data;
+        // Chunked: one apply() over a few hundred thousand arguments blows the
+        // call stack.
+        let binary = '';
+        for (let i = 0; i < pixels.length; i += 0x8000) {
+          binary += String.fromCharCode.apply(null, pixels.subarray(i, i + 0x8000));
+        }
+        return { data: btoa(binary), width, height };
+      },
+      { b64: png.toString('base64'), width: WIDTH },
+    );
+    const rgba = new Uint8Array(Buffer.from(frame.data, 'base64'));
+    // One palette for the whole clip: the screen is mostly a fixed dark
+    // interface, and a palette per frame both inflates the file and makes the
+    // background shimmer between frames.
+    palette ??= quantize(rgba, 128, { format: 'rgb565' });
+    encoder.writeFrame(applyPalette(rgba, palette, 'rgb565'), frame.width, frame.height, {
+      palette,
+      delay: DELAY_MS,
+    });
+  }
+  encoder.finish();
+  await helper.close();
+  await writeFile(`${OUT_DIR}/run-show.gif`, Buffer.from(encoder.bytes()));
+  log(`captured ${OUT_DIR}/run-show.gif (${frames.length} frames)`);
+
+  await page.keyboard.press('Escape');
+  await page.locator('.show-detail').waitFor();
+}
+
 async function main() {
   await mkdir(OUT_DIR, { recursive: true });
   const browser = await chromium.launch(LAUNCH);
@@ -382,6 +473,13 @@ async function main() {
     await captureMore(page);
     await captureContracts(page, context);
     await captureSettings(page);
+
+    // Last: it needs the show page, and leaves Run Show on the way out.
+    await page.locator('.bottom-nav__item', { hasText: 'Shows' }).click();
+    await page.locator('.shows-list').waitFor();
+    await page.locator('.show-card').first().click();
+    await page.locator('.show-detail').waitFor();
+    await captureRunShowGif(page);
 
     log('done');
   } finally {
