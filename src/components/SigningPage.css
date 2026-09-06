@@ -72,6 +72,61 @@
   width: 100%;
   border: 0;
   background: var(--surface-strong);
+  /* The whole agreement, scrolled through in the page rather than handed to a
+     PDF viewer the phone may not have. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.signing__page {
+  margin: 0;
+  width: 100%;
+  max-width: 46rem;
+}
+
+.signing__page img {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Paper, whatever the theme — a contract is read as a document. */
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 1px 6px rgb(0 0 0 / 0.28);
+}
+
+.signing__page figcaption {
+  margin-top: 6px;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.signing__doc-loading {
+  margin: 0;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.signing__doc-end {
+  height: 1px;
+  width: 100%;
+}
+
+/* A plain-text button, for the original file inside a sentence. */
+.signing__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .signing__doc-fallback {

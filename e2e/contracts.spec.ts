@@ -5,13 +5,24 @@ import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-/** A small but genuinely valid one-page PDF to stand in for an agreement. */
+/**
+ * A genuinely valid two-page PDF to stand in for an agreement.
+ *
+ * Two pages on purpose: the signing page has to show the whole document, and a
+ * one-page fixture cannot tell the difference between "rendered the contract"
+ * and "rendered the first page of it".
+ */
 function writeTestPdf(): string {
+  const text = (line: string) => `BT /F1 16 Tf 72 700 Td (${line}) Tj ET`;
+  const pageOne = text('Performer Agreement');
+  const pageTwo = text('Page two - clause 7');
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>',
-    '<< /Length 44 >>\nstream\nBT /F1 16 Tf 72 700 Td (Performer Agreement) Tj ET\nendstream',
+    '<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${pageOne.length} >>\nstream\n${pageOne}\nendstream`,
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>',
+    `<< /Length ${pageTwo.length} >>\nstream\n${pageTwo}\nendstream`,
     '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
   ];
   let out = '%PDF-1.4\n';
@@ -72,6 +83,16 @@ test.describe('contracts', () => {
     const signer = await signerContext.newPage();
     await signer.goto(link);
     await expect(signer.locator('.signing__title')).toBeVisible();
+
+    // The document itself, every page of it. An <object> was used here before
+    // and renders nothing on iOS, which is what most signers hold — so the
+    // pages are drawn as images, and both of them have to arrive.
+    await expect(signer.locator('.signing__page img')).toHaveCount(2);
+    await expect(signer.locator('.signing__page img').first()).toHaveAttribute(
+      'alt',
+      /page 1 of 2/,
+    );
+    await expect(signer.locator('.signing__page img').last()).toBeVisible();
 
     await signer.locator('.signing__field--name input').fill('Nadia Okonjo');
     // The contract asks for a few details as well as a signature; Email is the

@@ -13,6 +13,7 @@ import {
   requestsForContract,
   shortHash,
   signatureSummary,
+  signerStatus,
   signedFileName,
   signingUrl,
   splitIntoChunks,
@@ -254,5 +255,25 @@ describe('prefillFromShow', () => {
   it('fills nothing when there is no show, and nothing from an empty show', () => {
     expect(prefillFromShow([f('d', 'Show date')], undefined)).toEqual({});
     expect(prefillFromShow([f('d', 'Show date'), f('v', 'Venue')], {})).toEqual({});
+  });
+});
+
+describe('signerStatus', () => {
+  const signed = { signedAt: '2026-03-01T00:00:00.000Z', typedName: 'Ada', documentHash: 'h' };
+
+  it('says nothing about someone who was never sent anything', () => {
+    expect(signerStatus([], 'Ada Cole')).toBeNull();
+    expect(signerStatus([req({ signerName: 'Someone Else' })], 'Ada Cole')).toBeNull();
+  });
+
+  it('is green only when nothing is outstanding', () => {
+    const one = req({ signerName: 'Ada Cole', signed });
+    const two = req({ token: 't2', signerName: 'Ada Cole' });
+    expect(signerStatus([one], 'Ada Cole')).toBe('signed');
+    expect(signerStatus([one, two], 'Ada Cole')).toBe('waiting');
+  });
+
+  it('matches the way the Rolodex matches people, not by exact spelling', () => {
+    expect(signerStatus([req({ signerName: 'Ada  COLE', signed })], 'ada cole')).toBe('signed');
   });
 });

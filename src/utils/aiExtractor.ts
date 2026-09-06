@@ -94,10 +94,13 @@ function mapAIItem(item: AIScheduleRow): ScheduleItem {
  * Extract text from PDF files using PDF.js
  */
 async function extractTextFromPDF(file: File): Promise<string> {
-  // Loaded on demand so pdfjs-dist (a large dependency) stays out of the main bundle.
-  const pdfjsLib = await import("pdfjs-dist");
+  // Loaded on demand so pdfjs-dist (a large dependency) stays out of the main
+  // bundle, and the legacy build to match the signing page — see
+  // utils/pdfPages.ts for why that build. Shipping both would put two copies
+  // of pdf.js and two workers, around 1.7 MB, into the deployed app.
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
+    "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
     import.meta.url,
   ).toString();
 

@@ -5,6 +5,8 @@ import { rolodexKey } from '../../utils/rolodex';
 import { socialLink, bulkMailto, isEmail } from '../../utils/social';
 import { lineupProgress } from '../../utils/lineupTarget';
 import { PerformerProfile } from './PerformerProfile';
+import { Icon } from '../Icon';
+import type { SignerStatus } from '../../utils/contracts';
 
 interface PerformersSectionProps {
   performers: Performer[];
@@ -17,6 +19,11 @@ interface PerformersSectionProps {
   onTargetChange: (target: number | undefined) => void;
   /** Contracts for the performer whose profile is open, when the app can send them. */
   renderContracts?: (performer: Performer) => React.ReactNode;
+  /**
+   * Where each performer stands on their paperwork, for the mark by their
+   * name. Undefined when this show has no way to send contracts.
+   */
+  contractStatus?: (performer: Performer) => SignerStatus;
 }
 
 export function PerformersSection({
@@ -28,6 +35,7 @@ export function PerformersSection({
   onChange,
   onTargetChange,
   renderContracts,
+  contractStatus,
 }: PerformersSectionProps) {
   const [name, setName] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -156,6 +164,25 @@ export function PerformersSection({
               <div className="section-list-item__body">
                 <span className="section-list-item__order">{idx + 1}</span>
                 <span className="section-list-item__name">{p.name}</span>
+                {/* Their paperwork, on the bill rather than two taps inside
+                    their profile: on show week the question is asked of the
+                    whole lineup at once, so it has to be answerable by looking
+                    down it. */}
+                {(() => {
+                  const status = contractStatus?.(p);
+                  if (!status) return null;
+                  return (
+                    <span
+                      className={`lineup-signed lineup-signed--${status}`}
+                      title={status === 'signed' ? 'Contract signed' : 'Contract sent, not signed yet'}
+                    >
+                      <Icon name={status === 'signed' ? 'check' : 'clock'} size={13} aria-hidden />
+                      <span className="lineup-signed__label">
+                        {status === 'signed' ? 'Signed' : 'Unsigned'}
+                      </span>
+                    </span>
+                  );
+                })()}
                 {p.socialMedia && (
                   socialLink(p.socialMedia) ? (
                     <a

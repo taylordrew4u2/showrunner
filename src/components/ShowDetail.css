@@ -1418,8 +1418,12 @@ select.show-detail__status--select {
   flex: 1;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  /* Not space-between: with the buttons already pushed right by their own
+     auto margin, it only opened a hole between a short name and its details.
+     Everything now starts at the left and the row ends where its content
+     does. */
+  justify-content: flex-start;
+  gap: 10px;
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -1436,7 +1440,10 @@ select.show-detail__status--select {
 .section-list-item__body {
   display: flex;
   align-items: center;
-  gap: 12px;
+  /* Tight: these are a name and its details, not separate columns. The old
+     12px between every pill turned four short tags into a full extra row on a
+     phone. */
+  gap: 6px 8px;
   /* Keep a readable minimum so the buttons wrap below instead of crushing the
      name/tags into a sliver. Caps at 100% so it never overflows a tiny panel. */
   flex: 1 1 240px;
@@ -1604,9 +1611,18 @@ select.show-detail__status--select {
   font-size: 0.8rem;
   color: var(--text-muted);
   background: var(--surface);
-  padding: 4px 10px;
+  /* Was 4px 10px. A lineup row carries up to four of these — a handle, an
+     email, a walk-on and a credit — and at that padding they were most of the
+     row's height and width. */
+  padding: 2px 7px;
   border-radius: var(--radius-xs);
   font-weight: 500;
+  /* A long credit or a pasted email should not stretch the row; it truncates
+     and the profile has the whole of it. */
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .section-list-item__tag--link {
@@ -2838,4 +2854,44 @@ select.show-detail__status--select {
 
 .show-detail__host-option--clear {
   color: var(--text-muted);
+}
+
+/* Where someone stands on their paperwork, beside their name on the bill.
+   Green reads as done at a glance down a lineup, which is how this gets
+   looked at — nobody opens twelve profiles on show night. */
+.lineup-signed {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lineup-signed--signed {
+  color: var(--success-text, #1c7a45);
+  background: var(--success-soft, rgb(46 158 91 / 0.14));
+}
+
+.lineup-signed--waiting {
+  color: var(--text-muted);
+  background: var(--surface);
+}
+
+/* On a narrow phone the colour and the tick carry it; the word is what pushes
+   a lineup row onto a second line. The title attribute still says it, and so
+   does the profile. */
+@media (max-width: 430px) {
+  .lineup-signed__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
