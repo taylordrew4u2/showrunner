@@ -4,6 +4,7 @@ import { api } from './api';
 import { decryptWithKey, encryptWithKey } from './encryption';
 import { resolveMediaUrl } from './mediaStore';
 import { rolodexKey } from './rolodex';
+import { formatShowTime, parseShowDate } from './showDate';
 import type { SessionCredentials } from './session-vault';
 
 /**
@@ -36,6 +37,55 @@ export interface SigningPayload {
   createdAt: string;
   /** Extra details this contract asks the signer to fill in. */
   fields?: ContractField[];
+  /**
+   * Answers already known, keyed by field id — the show's date, venue and
+   * time when the contract was sent from a show. The signer sees them filled
+   * in and can correct them; nothing here is locked.
+   */
+  prefill?: Record<string, string>;
+}
+
+/** What is known about the booking a contract is being sent for. */
+export interface ShowContext {
+  showName?: string;
+  date?: string;
+  time?: string;
+  venueName?: string;
+  location?: string;
+}
+
+/**
+ * Fill in what the show already answers.
+ *
+ * A performer agreement that asks for the date and the venue is asking the
+ * signer to retype what the producer sent them the link for. Matching is on
+ * the label, since the questions are the producer's own words — "Venue",
+ * "Where is it", "Show date" — rather than a fixed set.
+ */
+export function prefillFromShow(
+  fields: ContractField[] | undefined,
+  show: ShowContext | undefined,
+): Record<string, string> {
+  if (!fields?.length || !show) return {};
+  const date = show.date ? (parseShowDate(show.date)?.toLocaleDateString(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  }) ?? show.date) : '';
+  const time = formatShowTime(show.time) ?? '';
+  const venue = [show.venueName, show.location].map((v) => (v ?? '').trim()).filter(Boolean).join(' — ');
+  const out: Record<string, string> = {};
+  for (const field of fields) {
+    const label = field.label.toLowerCase();
+    // Order matters: "show name" is asking for the show, not the venue, and
+    // "date of birth" is not the show's date.
+    if (/\bbirth|\bdob\b/.test(label)) continue;
+    let value = '';
+    if (/date|when\b/.test(label)) value = date;
+    else if (/\btime\b|call time|set time|doors/.test(label)) value = time;
+    else if (/venue|location|address|where/.test(label)) value = venue;
+    else if (/show|event|production/.test(label)) value = (show.showName ?? '').trim();
+    if (value) out[field.id] = value;
+  }
+  return out;
 }
 
 /**
@@ -51,6 +101,9 @@ export function suggestedFields(): ContractField[] {
     { id: 'credit', label: 'How to credit you', placeholder: 'Name, pronouns, socials', multiline: true },
     { id: 'email', label: 'Email', required: true },
     { id: 'phone', label: 'Phone' },
+    // These two answer themselves when the contract is sent from a show.
+    { id: 'show-date', label: 'Show date' },
+    { id: 'venue', label: 'Venue' },
   ];
 }
 
@@ -153,6 +206,7 @@ export async function sendForSignature(
   signer: { name: string; email?: string; contactId?: string },
   fromName: string,
   creds: SessionCredentials,
+  show?: ShowContext,
 ): Promise<SignatureRequest> {
   const dataUrl = await resolveMediaUrl(contract.fileRef);
   if (!dataUrl) throw new Error('That contract could not be opened.');
@@ -178,6 +232,10 @@ export async function sendForSignature(
     total: chunks.length,
     createdAt: new Date().toISOString(),
     fields: contract.fields?.length ? contract.fields : undefined,
+    prefill: (() => {
+      const filled = prefillFromShow(contract.fields, show);
+      return Object.keys(filled).length ? filled : undefined;
+    })(),
   };
   await api.put('/api/sign', { token, payload: encryptWithKey(payload, key) }, auth);
 

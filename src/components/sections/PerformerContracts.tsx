@@ -5,6 +5,7 @@ import {
   sendForSignature,
   shortHash,
   signingUrl,
+  type ShowContext,
 } from '../../utils/contracts';
 import { rolodexKey } from '../../utils/rolodex';
 import type { SessionCredentials } from '../../utils/session-vault';
@@ -15,6 +16,8 @@ interface PerformerContractsProps {
   performerEmail?: string;
   settings: AppSettings;
   session: SessionCredentials;
+  /** The booking this is being sent for, so date and venue arrive filled in. */
+  show?: ShowContext;
   onUpdateSettings: (settings: AppSettings) => void;
 }
 
@@ -39,6 +42,7 @@ export function PerformerContracts({
   performerEmail,
   settings,
   session,
+  show,
   onUpdateSettings,
 }: PerformerContractsProps) {
   const contracts = useMemo(() => settings.contracts ?? [], [settings.contracts]);
@@ -95,6 +99,7 @@ export function PerformerContracts({
         { name, email: performerEmail },
         settings.brandName,
         session,
+        show,
       );
       onUpdateSettings({ ...settings, signatureRequests: [request, ...requests] });
       await share(request);

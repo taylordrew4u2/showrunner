@@ -586,6 +586,13 @@ export function ShowDetail({
                   performerEmail={performer.email}
                   settings={settings}
                   session={session}
+                  show={{
+                    showName: show.name,
+                    date: show.date,
+                    time: show.time,
+                    venueName: show.venueName,
+                    location: show.location,
+                  }}
                   onUpdateSettings={onUpdateSettings}
                 />
               )

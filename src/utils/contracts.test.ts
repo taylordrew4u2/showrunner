@@ -8,6 +8,7 @@ import {
   generateSignToken,
   missingRequiredFields,
   newContractField,
+  prefillFromShow,
   readSignKeyFromHash,
   requestsForContract,
   shortHash,
@@ -217,5 +218,41 @@ describe('contract fields', () => {
     expect(suggested.length).toBeGreaterThan(0);
     expect(suggested.every((f) => f.label.trim().length > 0)).toBe(true);
     expect(new Set(suggested.map((f) => f.id)).size).toBe(suggested.length);
+  });
+});
+
+
+describe('prefillFromShow', () => {
+  const show = {
+    showName: 'Late Night Laughs',
+    date: '2026-03-14',
+    time: '20:30',
+    venueName: 'The Basement',
+    location: 'Portland, OR',
+  };
+  const f = (id: string, label: string) => ({ id, label });
+
+  it('answers the questions the show already answers', () => {
+    const filled = prefillFromShow(
+      [f('d', 'Show date'), f('v', 'Venue'), f('t', 'Set time'), f('n', 'Show name')],
+      show,
+    );
+    expect(filled.d).toContain('2026');
+    expect(filled.v).toBe('The Basement — Portland, OR');
+    expect(filled.t).toBeTruthy();
+    expect(filled.n).toBe('Late Night Laughs');
+  });
+
+  it('leaves questions about the signer alone', () => {
+    expect(prefillFromShow([f('s', 'Stage name'), f('c', 'How to credit you')], show)).toEqual({});
+  });
+
+  it('does not mistake a date of birth for the show date', () => {
+    expect(prefillFromShow([f('b', 'Date of birth')], show)).toEqual({});
+  });
+
+  it('fills nothing when there is no show, and nothing from an empty show', () => {
+    expect(prefillFromShow([f('d', 'Show date')], undefined)).toEqual({});
+    expect(prefillFromShow([f('d', 'Show date'), f('v', 'Venue')], {})).toEqual({});
   });
 });

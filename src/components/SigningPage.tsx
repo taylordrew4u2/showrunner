@@ -49,6 +49,9 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
       if (!view) { setPhase('missing'); return; }
       setPayload(view.payload);
       setTypedName(view.payload.signerName);
+      // What the show already answers — the date, the venue — arrives filled
+      // in. It is an ordinary value in the field, so it can still be corrected.
+      setValues(view.payload.prefill ?? {});
       const doc = await fetchSigningDocument(token, signKey, view.payload.total);
       if (cancelled) return;
       setDocUrl(doc);
