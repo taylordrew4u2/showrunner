@@ -1,0 +1,105 @@
+/* Contracts for one performer, inside their profile on a show. */
+.perf-contracts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.perf-contracts__title {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.perf-contracts__empty,
+.perf-contracts__error {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.perf-contracts__error {
+  color: var(--danger, #c0392b);
+  word-break: break-all;
+}
+
+.perf-contracts__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.perf-contracts__row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.perf-contracts__mark {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.5;
+}
+
+.perf-contracts__mark--signed {
+  background: var(--success, #2e9e5b);
+  opacity: 1;
+}
+
+.perf-contracts__who {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.perf-contracts__name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.perf-contracts__meta {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.perf-contracts__answers {
+  margin: 4px 0 0;
+  display: grid;
+  gap: 3px;
+  font-size: var(--text-sm);
+}
+
+.perf-contracts__answers div {
+  display: flex;
+  gap: 6px;
+}
+
+.perf-contracts__answers dt {
+  color: var(--text-muted);
+}
+
+.perf-contracts__answers dd {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.perf-contracts__send {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

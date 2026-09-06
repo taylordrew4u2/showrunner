@@ -73,7 +73,10 @@ test.describe('contracts', () => {
     await signer.goto(link);
     await expect(signer.locator('.signing__title')).toBeVisible();
 
-    await signer.locator('.signing__field input').fill('Nadia Okonjo');
+    await signer.locator('.signing__field--name input').fill('Nadia Okonjo');
+    // The contract asks for a few details as well as a signature; Email is the
+    // one it insists on.
+    await signer.getByLabel('Email').fill('nadia@example.com');
     await signer.locator('.signing__agree input').check();
     await signer.locator('.signing__cta').click();
     await expect(signer.locator('.signing__panel--done')).toContainText('Signed');

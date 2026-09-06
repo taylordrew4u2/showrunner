@@ -1,9 +1,10 @@
 import CryptoJS from 'crypto-js';
-import type { Contract, SignatureRecord, SignatureRequest } from '../types';
+import type { Contract, ContractField, SignatureRecord, SignatureRequest } from '../types';
 import { api } from './api';
 import { decryptWithKey, encryptWithKey } from './encryption';
 import { resolveMediaUrl } from './mediaStore';
 import { rolodexKey } from './rolodex';
+import { formatShowTime, parseShowDate } from './showDate';
 import type { SessionCredentials } from './session-vault';
 
 /**
@@ -34,6 +35,109 @@ export interface SigningPayload {
   /** Chunk count for the document in /api/sign-doc. */
   total: number;
   createdAt: string;
+  /** Extra details this contract asks the signer to fill in. */
+  fields?: ContractField[];
+  /**
+   * Answers already known, keyed by field id — the show's date, venue and
+   * time when the contract was sent from a show. The signer sees them filled
+   * in and can correct them; nothing here is locked.
+   */
+  prefill?: Record<string, string>;
+}
+
+/** What is known about the booking a contract is being sent for. */
+export interface ShowContext {
+  showName?: string;
+  date?: string;
+  time?: string;
+  venueName?: string;
+  location?: string;
+}
+
+/**
+ * Fill in what the show already answers.
+ *
+ * A performer agreement that asks for the date and the venue is asking the
+ * signer to retype what the producer sent them the link for. Matching is on
+ * the label, since the questions are the producer's own words — "Venue",
+ * "Where is it", "Show date" — rather than a fixed set.
+ */
+export function prefillFromShow(
+  fields: ContractField[] | undefined,
+  show: ShowContext | undefined,
+): Record<string, string> {
+  if (!fields?.length || !show) return {};
+  const date = show.date ? (parseShowDate(show.date)?.toLocaleDateString(undefined, {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  }) ?? show.date) : '';
+  const time = formatShowTime(show.time) ?? '';
+  const venue = [show.venueName, show.location].map((v) => (v ?? '').trim()).filter(Boolean).join(' — ');
+  const out: Record<string, string> = {};
+  for (const field of fields) {
+    const label = field.label.toLowerCase();
+    // Order matters: "show name" is asking for the show, not the venue, and
+    // "date of birth" is not the show's date.
+    if (/\bbirth|\bdob\b/.test(label)) continue;
+    let value = '';
+    if (/date|when\b/.test(label)) value = date;
+    else if (/\btime\b|call time|set time|doors/.test(label)) value = time;
+    else if (/venue|location|address|where/.test(label)) value = venue;
+    else if (/show|event|production/.test(label)) value = (show.showName ?? '').trim();
+    if (value) out[field.id] = value;
+  }
+  return out;
+}
+
+/**
+ * The details most agreements ask for beyond a name.
+ *
+ * Offered as a starting point when a contract is first set up — a producer can
+ * delete what does not apply, which is quicker than building the list from
+ * nothing.
+ */
+export function suggestedFields(): ContractField[] {
+  return [
+    { id: 'stage-name', label: 'Stage name', placeholder: 'If different from your legal name' },
+    { id: 'credit', label: 'How to credit you', placeholder: 'Name, pronouns, socials', multiline: true },
+    { id: 'email', label: 'Email', required: true },
+    { id: 'phone', label: 'Phone' },
+    // These two answer themselves when the contract is sent from a show.
+    { id: 'show-date', label: 'Show date' },
+    { id: 'venue', label: 'Venue' },
+  ];
+}
+
+/** A blank question, ready for the producer to name. */
+export function newContractField(label = ''): ContractField {
+  return { id: randomToken().slice(0, 10), label };
+}
+
+/**
+ * The questions still unanswered that the signer cannot skip.
+ *
+ * Returned as labels rather than a boolean because the signer is told which
+ * ones — "Fill in Email" beats a disabled button with no explanation.
+ */
+export function missingRequiredFields(
+  fields: ContractField[] | undefined,
+  values: Record<string, string>,
+): string[] {
+  return (fields ?? [])
+    .filter((f) => f.required && !(values[f.id] ?? '').trim())
+    .map((f) => f.label.trim() || 'a detail');
+}
+
+/**
+ * What the signer typed, paired with the labels they saw and stripped of blanks
+ * — an empty answer to an optional question is not worth recording.
+ */
+export function collectFieldAnswers(
+  fields: ContractField[] | undefined,
+  values: Record<string, string>,
+): { label: string; value: string }[] {
+  return (fields ?? [])
+    .map((f) => ({ label: f.label.trim() || 'Detail', value: (values[f.id] ?? '').trim() }))
+    .filter((f) => f.value !== '');
 }
 
 /** A 256-bit URL-safe token or key. */
@@ -102,6 +206,7 @@ export async function sendForSignature(
   signer: { name: string; email?: string; contactId?: string },
   fromName: string,
   creds: SessionCredentials,
+  show?: ShowContext,
 ): Promise<SignatureRequest> {
   const dataUrl = await resolveMediaUrl(contract.fileRef);
   if (!dataUrl) throw new Error('That contract could not be opened.');
@@ -126,6 +231,11 @@ export async function sendForSignature(
     fileName: contract.fileName,
     total: chunks.length,
     createdAt: new Date().toISOString(),
+    fields: contract.fields?.length ? contract.fields : undefined,
+    prefill: (() => {
+      const filled = prefillFromShow(contract.fields, show);
+      return Object.keys(filled).length ? filled : undefined;
+    })(),
   };
   await api.put('/api/sign', { token, payload: encryptWithKey(payload, key) }, auth);
 
@@ -244,10 +354,12 @@ export async function submitSignature(
   key: string,
   typedName: string,
   documentDataUrl: string,
+  fields: { label: string; value: string }[] = [],
 ): Promise<SignatureRecord> {
   const record: SignatureRecord = {
     signedAt: new Date().toISOString(),
     typedName: typedName.trim(),
+    fields: fields.length ? fields : undefined,
     documentHash: documentHash(documentDataUrl),
     userAgent: typeof navigator === 'undefined' ? undefined : navigator.userAgent.slice(0, 200),
   };

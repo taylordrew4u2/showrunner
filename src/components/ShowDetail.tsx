@@ -6,6 +6,7 @@ import { Icon, type IconName } from './Icon';
 import { MoreMenu, type MoreMenuItem } from './MoreMenu';
 import { BasicInfoSection } from './sections/BasicInfoSection';
 import { PerformersSection } from './sections/PerformersSection';
+import { PerformerContracts } from './sections/PerformerContracts';
 import { ArtistsSection } from './sections/ArtistsSection';
 import { ScheduleSection } from './sections/ScheduleSection';
 import { DJMusicSection } from './sections/DJMusicSection';
@@ -23,6 +24,7 @@ import { buildShowStats, progressPercent, isComplete, formatRunTime } from '../u
 import { showDJSongs } from '../utils/musicLibrary';
 import { getRolodexTerm } from '../utils/terminology';
 import { hostChoices } from '../utils/hostChoices';
+import type { SessionCredentials } from '../utils/session-vault';
 import { loadViewerKey, viewerUrl as buildViewerUrl } from '../utils/viewerAudio';
 import './ShowDetail.css';
 import { useConfirm } from './useConfirm';
@@ -54,6 +56,13 @@ interface ShowDetailProps {
   onBack: () => void;
   onUpdate: (show: Show) => void;
   onSaveToRolodex?: (comic: import('../types').PotentialComic) => void;
+  /**
+   * Sending contracts from inside the show. Both are needed together — the
+   * session to upload the document, the callback to file the request — so the
+   * performer's contracts only appear when the app can actually send one.
+   */
+  session?: SessionCredentials;
+  onUpdateSettings?: (settings: AppSettings) => void;
   onSaveScheduleTemplate?: (name: string, items: import('../types').ScheduleTemplateItem[]) => void;
   onDeleteScheduleTemplate?: (id: string) => void;
   /**
@@ -105,6 +114,8 @@ export function ShowDetail({
   onBack,
   onUpdate,
   onSaveToRolodex,
+  session,
+  onUpdateSettings,
   onSaveScheduleTemplate,
   onDeleteScheduleTemplate,
   onDuplicate,
@@ -333,6 +344,15 @@ export function ShowDetail({
     return out;
   }, [show.performers, show.artists, settings.potentialComics, rolodexTerm]);
   const hostListId = `show-host-options-${show.id}`;
+  /**
+   * The picker under the Host field.
+   *
+   * A datalist is invisible on most phones — it only appears once you have
+   * typed enough of a name to match, which is no use when the whole point is
+   * not remembering how the name is spelled. So the same names are also a
+   * list you can open and tap.
+   */
+  const [hostPicking, setHostPicking] = useState(false);
 
   function handleScenesChange(scenes: Scene[]) {
     onUpdate({ ...show, scenes });
@@ -558,6 +578,26 @@ export function ShowDetail({
         onSaveToRolodex={onSaveToRolodex}
         onChange={(performers) => handleUpdate({ performers })}
         onTargetChange={(performerTarget) => handleUpdate({ performerTarget })}
+        renderContracts={
+          session && onUpdateSettings
+            ? (performer) => (
+                <PerformerContracts
+                  performerName={performer.name}
+                  performerEmail={performer.email}
+                  settings={settings}
+                  session={session}
+                  show={{
+                    showName: show.name,
+                    date: show.date,
+                    time: show.time,
+                    venueName: show.venueName,
+                    location: show.location,
+                  }}
+                  onUpdateSettings={onUpdateSettings}
+                />
+              )
+            : undefined
+        }
       />,
     },
     {
@@ -931,11 +971,51 @@ export function ShowDetail({
           onChange={(e) => onUpdate({ ...show, host: e.target.value || undefined })}
         />
         {hostSuggestions.length > 0 && (
-          <datalist id={hostListId}>
+          <>
+            <datalist id={hostListId}>
+              {hostSuggestions.map((pick) => (
+                <option key={pick.name} value={pick.name} label={pick.from} />
+              ))}
+            </datalist>
+            <button
+              type="button"
+              className="btn btn--secondary btn--sm show-detail__host-pick"
+              aria-expanded={hostPicking}
+              onClick={() => setHostPicking((v) => !v)}
+            >
+              {hostPicking ? 'Close' : `Pick from ${rolodexTerm.plural.toLowerCase()}`}
+            </button>
+          </>
+        )}
+        {hostPicking && (
+          <div className="show-detail__host-list">
             {hostSuggestions.map((pick) => (
-              <option key={pick.name} value={pick.name} label={pick.from} />
+              <button
+                key={pick.name}
+                type="button"
+                className="show-detail__host-option"
+                onClick={() => {
+                  onUpdate({ ...show, host: pick.name });
+                  setHostPicking(false);
+                }}
+              >
+                <span className="show-detail__host-option-name">{pick.name}</span>
+                <span className="show-detail__host-option-from">{pick.from}</span>
+              </button>
             ))}
-          </datalist>
+            {show.host && (
+              <button
+                type="button"
+                className="show-detail__host-option show-detail__host-option--clear"
+                onClick={() => {
+                  onUpdate({ ...show, host: undefined });
+                  setHostPicking(false);
+                }}
+              >
+                Clear the host
+              </button>
+            )}
+          </div>
         )}
       </div>
 

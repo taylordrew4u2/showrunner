@@ -20,7 +20,7 @@ interface AIImportFlowProps {
   onBookPerformer?: (comic: PotentialComic) => Performer;
   /**
    * Everyone the app knows by name. A run sheet writes people into the cue
-   * text ("Justin welcome", "Taylor — closer"), and matching them here means
+   * text ("Alex welcome", "Taylor — closer"), and matching them here means
    * the review screen shows who it worked out rather than a column of blanks
    * that only fills in after you've committed to the import.
    */

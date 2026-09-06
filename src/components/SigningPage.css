@@ -197,3 +197,41 @@
     text-align: center;
   }
 }
+
+/* Extra details the contract asks for — stage name, credit line, contact. */
+.signing__field textarea {
+  width: 100%;
+  font-size: 17px;
+  min-height: 76px;
+  resize: vertical;
+}
+
+.signing__optional {
+  font-style: normal;
+  font-weight: 500;
+  opacity: 0.65;
+}
+
+.signing__hint {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.signing__answers {
+  margin: 0 0 4px;
+  display: grid;
+  gap: 8px;
+}
+
+.signing__answer dt {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.signing__answer dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  white-space: pre-wrap;
+}

@@ -15,6 +15,8 @@ interface PerformersSectionProps {
   onSaveToRolodex?: (comic: PotentialComic) => void;
   onChange: (performers: Performer[]) => void;
   onTargetChange: (target: number | undefined) => void;
+  /** Contracts for the performer whose profile is open, when the app can send them. */
+  renderContracts?: (performer: Performer) => React.ReactNode;
 }
 
 export function PerformersSection({
@@ -25,6 +27,7 @@ export function PerformersSection({
   onSaveToRolodex,
   onChange,
   onTargetChange,
+  renderContracts,
 }: PerformersSectionProps) {
   const [name, setName] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -389,6 +392,7 @@ export function PerformersSection({
               onChange={updatePerformer}
               onDelete={deletePerformer}
               onSaveToRolodex={onSaveToRolodex}
+              contracts={renderContracts?.(selectedPerformer)}
             />
           </div>
         </>
