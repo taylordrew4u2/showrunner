@@ -52,6 +52,7 @@ import { readSignKeyFromHash, signatureSummary } from './utils/contracts';
 import { orphanedRefs, showMediaRefs, sweepUnusedMedia, type SweepReport } from './utils/mediaCleanup';
 import { deleteMedia } from './utils/mediaStore';
 import { mergePendingShows } from './utils/mergePending';
+import { duplicateShow } from './utils/duplicateShow';
 import { unpublishAll } from './utils/viewerAudio';
 import { MusicLibrary } from './components/MusicLibrary';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -868,21 +869,21 @@ export default function App() {
   function handleDuplicateShow(id: string) {
     const original = shows.find((s) => s.id === id);
     if (!original) return;
-    const now = new Date().toISOString();
-    const copy: Show = {
-      ...structuredClone(original),
-      id: generateId(),
-      name: `${original.name} (copy)`,
-      status: 'upcoming',
-      createdAt: now,
-      updatedAt: now,
-      date: '', // clear the date so the user picks a new one
-      // Drop anything tied to the original instance, not the template.
-      viewToken: undefined,
-      viewNote: undefined,
-      recap: undefined,
-    };
-    setShows((prev) => [copy, ...prev]);
+    setShows((prev) => [duplicateShow(original), ...prev]);
+  }
+
+  /**
+   * Book a run of the same show on the dates given.
+   *
+   * Real shows, not a stored rule: a booked night gets edited constantly —
+   * someone drops out, the venue moves, a holiday shifts it a week — and each
+   * of these can be edited like any other show. See utils/recurrence.ts.
+   */
+  function handleRepeatShow(id: string, dates: string[]) {
+    const original = shows.find((s) => s.id === id);
+    if (!original || dates.length === 0) return;
+    const copies = dates.map((date) => duplicateShow(original, { name: original.name, date }));
+    setShows((prev) => [...copies, ...prev]);
   }
 
   function handleDeleteShow(id: string) {
@@ -1844,6 +1845,7 @@ export default function App() {
                   onSaveScheduleTemplate={handleSaveScheduleTemplate}
                   onDeleteScheduleTemplate={handleDeleteScheduleTemplate}
                   onDuplicate={handleDuplicateShow}
+                  onRepeat={handleRepeatShow}
                   onDelete={handleDeleteShow}
                 />
               </div>

@@ -25,6 +25,13 @@ import { showDJSongs } from '../utils/musicLibrary';
 import { getRolodexTerm } from '../utils/terminology';
 import { hostChoices } from '../utils/hostChoices';
 import { signerStatus } from '../utils/contracts';
+import {
+  describeRecurrence,
+  MAX_OCCURRENCES,
+  RECURRENCE_LABELS,
+  recurringDates,
+  type RecurrencePattern,
+} from '../utils/recurrence';
 import type { SessionCredentials } from '../utils/session-vault';
 import { loadViewerKey, viewerUrl as buildViewerUrl } from '../utils/viewerAudio';
 import './ShowDetail.css';
@@ -73,7 +80,21 @@ interface ShowDetailProps {
    * width now, so they have to be reachable from the show itself.
    */
   onDuplicate?: (id: string) => void;
+  /** Book this show again on the given dates — a weekly room, a monthly. */
+  onRepeat?: (id: string, dates: string[]) => void;
   onDelete?: (id: string) => void;
+}
+
+/** A date on the repeat list: the weekday leads, since that is what is checked. */
+function formatRepeatDate(iso: string): string {
+  const date = parseShowDate(iso);
+  if (!date) return iso;
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 }
 
 const STATUS_LABELS: Record<ShowStatus, string> = {
@@ -120,6 +141,7 @@ export function ShowDetail({
   onSaveScheduleTemplate,
   onDeleteScheduleTemplate,
   onDuplicate,
+  onRepeat,
   onDelete,
 }: ShowDetailProps) {
   const { confirm, confirmDialog } = useConfirm();
@@ -172,6 +194,10 @@ export function ShowDetail({
   // Adding and removing sections happens in one deliberate place, so a stray tap
   // next to the expand chevron can't wipe a section off the show.
   const [manageSectionsOpen, setManageSectionsOpen] = useState(false);
+  /** The repeat sheet, and what it is currently offering to book. */
+  const [repeatOpen, setRepeatOpen] = useState(false);
+  const [repeatPattern, setRepeatPattern] = useState<RecurrencePattern>('weekly');
+  const [repeatCount, setRepeatCount] = useState(4);
 
   /**
    * Whether the navigation bar is showing the show's name.
@@ -345,6 +371,10 @@ export function ShowDetail({
     return out;
   }, [show.performers, show.artists, settings.potentialComics, rolodexTerm]);
   const hostListId = `show-host-options-${show.id}`;
+  const repeatDates = useMemo(
+    () => (repeatOpen && show.date ? recurringDates(show.date, repeatPattern, repeatCount) : []),
+    [repeatOpen, show.date, repeatPattern, repeatCount],
+  );
   /**
    * The picker under the Host field.
    *
@@ -768,6 +798,13 @@ export function ShowDetail({
       // Back to the list, because the copy is a different show from the one
       // you're looking at and it lands at the top of the grid.
       onSelect: () => { onDuplicate(show.id); onBack(); },
+    });
+  }
+
+  if (onRepeat) {
+    moreItems.push({
+      label: 'Repeat this show…',
+      onSelect: () => setRepeatOpen(true),
     });
   }
 
@@ -1234,6 +1271,84 @@ export function ShowDetail({
           onFinish={() => onUpdate({ ...show, status: 'completed' })}
           onClose={() => setRunShowOpen(false)}
         />
+      )}
+
+      {repeatOpen && onRepeat && (
+        <Modal onClose={() => setRepeatOpen(false)} labelledBy="repeat-show-title">
+          <div className="repeat-show">
+            <h2 id="repeat-show-title" className="repeat-show__title">Repeat this show</h2>
+            {!show.date ? (
+              <p className="repeat-show__sub">
+                Give this show a date first — the run is worked out from it.
+              </p>
+            ) : (
+              <>
+                <p className="repeat-show__sub">
+                  Books more nights of “{show.name}”, each a copy of this one: the same venue,
+                  lineup and running order, on the dates below. Each is an ordinary show
+                  afterwards, so changing one changes only that night.
+                </p>
+
+                <label className="repeat-show__field">
+                  <span>How often</span>
+                  <select
+                    className="section-field__input"
+                    value={repeatPattern}
+                    onChange={(e) => setRepeatPattern(e.target.value as RecurrencePattern)}
+                  >
+                    {(Object.keys(RECURRENCE_LABELS) as RecurrencePattern[]).map((p) => (
+                      <option key={p} value={p}>{RECURRENCE_LABELS[p]}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="repeat-show__field">
+                  <span>How many more</span>
+                  <input
+                    className="section-field__input"
+                    type="number"
+                    min={1}
+                    max={MAX_OCCURRENCES}
+                    value={repeatCount}
+                    onChange={(e) => setRepeatCount(Number(e.target.value))}
+                  />
+                </label>
+
+                <p className="repeat-show__rule">{describeRecurrence(show.date, repeatPattern)}</p>
+
+                {/* The dates themselves, before anything is booked. A rule is
+                    easy to misread; a list of nights is not, and this is the
+                    last point at which a wrong one costs nothing. */}
+                {repeatDates.length > 0 ? (
+                  <ul className="repeat-show__dates">
+                    {repeatDates.map((d) => (
+                      <li key={d}>{formatRepeatDate(d)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="repeat-show__sub">Choose how many nights to add.</p>
+                )}
+
+                <div className="repeat-show__actions">
+                  <button className="btn btn--ghost" onClick={() => setRepeatOpen(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn--primary"
+                    disabled={repeatDates.length === 0}
+                    onClick={() => {
+                      onRepeat(show.id, repeatDates);
+                      setRepeatOpen(false);
+                      onBack();
+                    }}
+                  >
+                    {repeatDates.length === 1 ? 'Add 1 show' : `Add ${repeatDates.length} shows`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
       )}
 
       {manageSectionsOpen && (

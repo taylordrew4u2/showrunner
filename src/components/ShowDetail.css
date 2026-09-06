@@ -2895,3 +2895,68 @@ select.show-detail__status--select {
     white-space: nowrap;
   }
 }
+
+/* Booking a run of the same show. */
+.repeat-show {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 30rem;
+}
+
+.repeat-show__title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.repeat-show__sub {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.repeat-show__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.repeat-show__field > span {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--text-muted);
+}
+
+.repeat-show__rule {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The nights themselves. Scrolls rather than pushing the buttons off a phone
+   screen — a year of a weekly room is 52 of these. */
+.repeat-show__dates {
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 34vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  font-size: 0.88rem;
+  color: var(--text);
+}
+
+.repeat-show__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
