@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   alreadyPending,
+  collectFieldAnswers,
   contractNameFromFile,
   documentHash,
   generateSignKey,
   generateSignToken,
+  missingRequiredFields,
+  newContractField,
+  prefillFromShow,
   readSignKeyFromHash,
   requestsForContract,
   shortHash,
@@ -12,6 +16,7 @@ import {
   signedFileName,
   signingUrl,
   splitIntoChunks,
+  suggestedFields,
 } from './contracts';
 import type { SignatureRequest } from '../types';
 
@@ -167,5 +172,87 @@ describe('signedFileName', () => {
 
   it('drops punctuation a download would choke on', () => {
     expect(signedFileName('Release / Waiver', 'D\'Arcy')).toBe('Release-Waiver-DArcy.pdf');
+  });
+});
+
+
+describe('contract fields', () => {
+  const fields = [
+    { id: 'stage', label: 'Stage name' },
+    { id: 'credit', label: 'How to credit you', required: true, multiline: true },
+  ];
+
+  it('names the required questions still blank, so the signer is told which', () => {
+    expect(missingRequiredFields(fields, { stage: 'Ada' })).toEqual(['How to credit you']);
+    expect(missingRequiredFields(fields, { credit: 'Ada Cole (she/her)' })).toEqual([]);
+  });
+
+  it('treats whitespace as blank — a space is not an answer', () => {
+    expect(missingRequiredFields(fields, { credit: '   ' })).toEqual(['How to credit you']);
+  });
+
+  it('has nothing to require when a contract asks for nothing', () => {
+    expect(missingRequiredFields(undefined, {})).toEqual([]);
+    expect(collectFieldAnswers(undefined, {})).toEqual([]);
+  });
+
+  it('records answers against the label the signer saw, trimmed', () => {
+    expect(collectFieldAnswers(fields, { stage: ' Lady A ', credit: 'Lady A' })).toEqual([
+      { label: 'Stage name', value: 'Lady A' },
+      { label: 'How to credit you', value: 'Lady A' },
+    ]);
+  });
+
+  it('drops unanswered optional questions rather than filing empty rows', () => {
+    expect(collectFieldAnswers(fields, { credit: 'Lady A' })).toEqual([
+      { label: 'How to credit you', value: 'Lady A' },
+    ]);
+  });
+
+  it('gives each new question its own id, so two blank rows stay distinct', () => {
+    expect(newContractField().id).not.toBe(newContractField().id);
+  });
+
+  it('suggests a starting list that is all editable text', () => {
+    const suggested = suggestedFields();
+    expect(suggested.length).toBeGreaterThan(0);
+    expect(suggested.every((f) => f.label.trim().length > 0)).toBe(true);
+    expect(new Set(suggested.map((f) => f.id)).size).toBe(suggested.length);
+  });
+});
+
+
+describe('prefillFromShow', () => {
+  const show = {
+    showName: 'Late Night Laughs',
+    date: '2026-03-14',
+    time: '20:30',
+    venueName: 'The Basement',
+    location: 'Portland, OR',
+  };
+  const f = (id: string, label: string) => ({ id, label });
+
+  it('answers the questions the show already answers', () => {
+    const filled = prefillFromShow(
+      [f('d', 'Show date'), f('v', 'Venue'), f('t', 'Set time'), f('n', 'Show name')],
+      show,
+    );
+    expect(filled.d).toContain('2026');
+    expect(filled.v).toBe('The Basement — Portland, OR');
+    expect(filled.t).toBeTruthy();
+    expect(filled.n).toBe('Late Night Laughs');
+  });
+
+  it('leaves questions about the signer alone', () => {
+    expect(prefillFromShow([f('s', 'Stage name'), f('c', 'How to credit you')], show)).toEqual({});
+  });
+
+  it('does not mistake a date of birth for the show date', () => {
+    expect(prefillFromShow([f('b', 'Date of birth')], show)).toEqual({});
+  });
+
+  it('fills nothing when there is no show, and nothing from an empty show', () => {
+    expect(prefillFromShow([f('d', 'Show date')], undefined)).toEqual({});
+    expect(prefillFromShow([f('d', 'Show date'), f('v', 'Venue')], {})).toEqual({});
   });
 });
