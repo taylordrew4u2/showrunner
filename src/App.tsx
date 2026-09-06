@@ -51,6 +51,7 @@ import { SigningPage } from './components/SigningPage';
 import { readSignKeyFromHash, signatureSummary } from './utils/contracts';
 import { orphanedRefs, showMediaRefs, sweepUnusedMedia, type SweepReport } from './utils/mediaCleanup';
 import { deleteMedia } from './utils/mediaStore';
+import { mergePendingShows } from './utils/mergePending';
 import { unpublishAll } from './utils/viewerAudio';
 import { MusicLibrary } from './components/MusicLibrary';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -451,7 +452,13 @@ export default function App() {
         const rawPendingSettings = readPending<AppSettings>(PENDING_SETTINGS_KEY, currentSession.username);
         const pendingSettings = rawPendingSettings ? stripLegacySettingsMedia(healSettings(rawPendingSettings)) : null;
 
-        const initialShows = pendingShows ?? autoStatusShows;
+        // A held copy is this device's unsaved work, not a picture of the whole
+        // account: merged with what the server holds rather than replacing it,
+        // so a show added elsewhere since the failed save is not deleted by
+        // this launch. See mergePendingShows.
+        const initialShows = pendingShows
+          ? mergePendingShows(pendingShows, autoStatusShows, (pendingSettings ?? migratedSettings).trash ?? [])
+          : autoStatusShows;
         // A pending copy is by definition *not* what the server has; anything
         // else came straight off it and needs no local copy until it's edited.
         savedShowsRef.current = pendingShows ? null : initialShows;
@@ -1229,8 +1236,14 @@ export default function App() {
     }
   }
 
-  function handleUpdateShow(updated: Show) {
-    const previous = shows.find((s) => s.id === updated.id);
+  function handleUpdateShow(incoming: Show) {
+    const previous = shows.find((s) => s.id === incoming.id);
+    // Stamp the edit. Every change to a show comes through here, and until now
+    // `updatedAt` was written once at creation and never again — so two copies
+    // of a show, one from this device and one from the account, carried no
+    // evidence of which was edited more recently. Reconciling them after a
+    // failed save needs exactly that evidence.
+    const updated: Show = { ...incoming, updatedAt: new Date().toISOString() };
     const nextShows = shows.map((s) => (s.id === updated.id ? updated : s));
     setShows(nextShows);
     setSelectedShow(updated);
@@ -1822,6 +1835,11 @@ export default function App() {
                   startInRunShow={startInRunShow}
                   onBack={handleBack}
                   onUpdate={handleUpdateShow}
+                  session={session ?? undefined}
+                  onUpdateSettings={(updated) => {
+                    setSettings(updated);
+                    saveSettings(updated);
+                  }}
                   onSaveToRolodex={handleSavePerformerToRolodex}
                   onSaveScheduleTemplate={handleSaveScheduleTemplate}
                   onDeleteScheduleTemplate={handleDeleteScheduleTemplate}

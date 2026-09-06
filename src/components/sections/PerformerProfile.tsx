@@ -16,9 +16,14 @@ interface PerformerProfileProps {
   onChange: (updated: Performer) => void;
   onDelete: (id: string) => void;
   onSaveToRolodex?: (comic: PotentialComic) => void;
+  /**
+   * Contracts for this person, rendered by the caller — the profile itself has
+   * no idea about settings or the session, and does not need one.
+   */
+  contracts?: React.ReactNode;
 }
 
-export function PerformerProfile({ performer, onBack, onChange, onDelete, onSaveToRolodex }: PerformerProfileProps) {
+export function PerformerProfile({ performer, onBack, onChange, onDelete, onSaveToRolodex, contracts }: PerformerProfileProps) {
   // Labels have to point at the field they name: written as a plain <label>
   // beside an input they are decoration — not announced as the field's name,
   // and not tappable to focus it.
@@ -443,6 +448,7 @@ export function PerformerProfile({ performer, onBack, onChange, onDelete, onSave
 
         </div>
       </div>
+      {contracts}
       {confirmDialog}
     </div>
   );

@@ -2798,3 +2798,44 @@ select.show-detail__status--select {
 .show-progress__card--full .show-progress__bar {
   background: var(--success-strong);
 }
+
+/* Tapping a host rather than typing one — the datalist alone is invisible on
+   a phone until you have already spelled the name. */
+.show-detail__host-list {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.show-detail__host-option {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px 12px;
+  min-height: 40px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.show-detail__host-option:hover {
+  border-color: var(--text-muted);
+}
+
+.show-detail__host-option-name {
+  font-weight: 600;
+}
+
+.show-detail__host-option-from {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.show-detail__host-option--clear {
+  color: var(--text-muted);
+}
