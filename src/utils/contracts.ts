@@ -380,6 +380,24 @@ export function signatureSummary(requests: SignatureRequest[]): SignatureSummary
   return { total: requests.length, signed, waiting: requests.length - signed };
 }
 
+/**
+ * Where one person stands on their paperwork, for a lineup row.
+ *
+ * `signed` only when nothing is outstanding: a comic who has signed the
+ * performer agreement but not the photo release is still `waiting`, because
+ * the question the producer is asking the row is "is this one done?".
+ * `null` means nothing was ever sent, which is not the same as unsigned and
+ * should not put a mark against their name.
+ */
+export type SignerStatus = 'signed' | 'waiting' | null;
+
+export function signerStatus(requests: SignatureRequest[], signerName: string): SignerStatus {
+  const key = rolodexKey(signerName);
+  const theirs = requests.filter((r) => rolodexKey(r.signerName) === key);
+  if (theirs.length === 0) return null;
+  return theirs.every((r) => r.signed) ? 'signed' : 'waiting';
+}
+
 /** Requests for one contract, newest first. */
 export function requestsForContract(
   requests: SignatureRequest[],

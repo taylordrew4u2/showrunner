@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SignatureRecord } from '../types';
 import {
   collectFieldAnswers,
@@ -10,6 +10,7 @@ import {
   submitSignature,
   type SigningPayload,
 } from '../utils/contracts';
+import { renderPdfPages, type RenderedPage } from '../utils/pdfPages';
 import './SigningPage.css';
 
 interface SigningPageProps {
@@ -32,6 +33,19 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
   const [phase, setPhase] = useState<Phase>(signKey ? 'loading' : 'nokey');
   const [payload, setPayload] = useState<SigningPayload | null>(null);
   const [docUrl, setDocUrl] = useState<string | null>(null);
+  /**
+   * The contract itself, drawn page by page.
+   *
+   * Not an `<object>` any more: iOS Safari will not render a PDF inline, so on
+   * most phones the signer was shown a fallback button instead of the
+   * agreement. Nobody should be asked to sign a document they were not shown.
+   */
+  const [pages, setPages] = useState<RenderedPage[]>([]);
+  const [pageCount, setPageCount] = useState(0);
+  const [docError, setDocError] = useState(false);
+  /** True once the last page has been scrolled past at least once. */
+  const [readToEnd, setReadToEnd] = useState(false);
+  const endRef = useRef<HTMLDivElement | null>(null);
   const [signed, setSigned] = useState<SignatureRecord | null>(null);
   const [typedName, setTypedName] = useState('');
   // Keyed by field id, so editing the contract's questions later cannot
@@ -55,6 +69,22 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
       const doc = await fetchSigningDocument(token, signKey, view.payload.total);
       if (cancelled) return;
       setDocUrl(doc);
+      if (doc) {
+        // Pages appear as they finish rather than all at the end — a long
+        // agreement should be readable from page one while the rest draws.
+        try {
+          await renderPdfPages(doc, (page, total) => {
+            if (cancelled) return;
+            setPageCount(total);
+            setPages((prev) => [...prev, page]);
+          });
+        } catch (err) {
+          // Logged, not swallowed: when a signer says the document did not
+          // show, this is the only place that can say why.
+          console.error('Could not render the contract:', err);
+          if (!cancelled) setDocError(true);
+        }
+      }
       if (view.signed) {
         setSigned(view.signed);
         setPhase('done');
@@ -64,6 +94,27 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
     })();
     return () => { cancelled = true; };
   }, [token, signKey]);
+
+  /**
+   * Notice when the end of the document has been reached.
+   *
+   * Not a gate on signing — a signer who scrolls fast, or reads the copy they
+   * were emailed, still gets to sign — but the page can then say plainly
+   * whether there is more above the fold, which on a phone is otherwise
+   * invisible.
+   */
+  useEffect(() => {
+    const end = endRef.current;
+    if (!end || pages.length === 0 || readToEnd) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setReadToEnd(true);
+      },
+      { rootMargin: '0px 0px -8% 0px' },
+    );
+    observer.observe(end);
+    return () => observer.disconnect();
+  }, [pages.length, readToEnd]);
 
   async function handleSign() {
     if (!signKey || !docUrl || !payload) return;
@@ -131,20 +182,44 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
       </header>
 
       <main className="signing__main">
-        {docUrl ? (
-          <object className="signing__doc" data={docUrl} type="application/pdf" aria-label={payload.contractName}>
-            {/* iOS Safari will not render a PDF in an <object>, so the fallback
-                is not an edge case here — it is what most phones show. */}
-            <div className="signing__doc-fallback">
-              <p>Your browser cannot show the document inline.</p>
-              <button className="btn btn--secondary" onClick={download}>Open the PDF</button>
-            </div>
-          </object>
-        ) : (
+        {!docUrl ? (
           <p className="signing__error" role="alert">
             The document could not be loaded, so there is nothing to agree to yet. Reload the page,
             or ask for the link again.
           </p>
+        ) : docError && pages.length === 0 ? (
+          /* Drawing the pages failed — an encrypted or malformed PDF. The file
+             itself is still here, so offer it rather than leaving them stuck. */
+          <div className="signing__doc-fallback">
+            <p>This document could not be displayed here.</p>
+            <button className="btn btn--secondary" onClick={download}>Open the PDF</button>
+          </div>
+        ) : pages.length === 0 ? (
+          <p className="signing__doc-loading">Opening the document…</p>
+        ) : (
+          <div className="signing__doc">
+            {pages.map((page) => (
+              <figure className="signing__page" key={page.pageNumber}>
+                <img
+                  src={page.dataUrl}
+                  width={page.width}
+                  height={page.height}
+                  alt={`${payload.contractName}, page ${page.pageNumber} of ${pageCount}`}
+                />
+                {pageCount > 1 && (
+                  <figcaption>
+                    Page {page.pageNumber} of {pageCount}
+                  </figcaption>
+                )}
+              </figure>
+            ))}
+            {pages.length < pageCount && (
+              <p className="signing__doc-loading">
+                Page {pages.length + 1} of {pageCount}…
+              </p>
+            )}
+            <div ref={endRef} className="signing__doc-end" aria-hidden="true" />
+          </div>
         )}
       </main>
 
@@ -244,8 +319,18 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
             </p>
           )}
 
+          {pages.length > 0 && !readToEnd && (
+            <p className="signing__hint">
+              {pageCount > 1
+                ? `This agreement is ${pageCount} pages. Scroll up through all of it before you sign.`
+                : 'Scroll up through the whole agreement before you sign.'}
+            </p>
+          )}
+
           <p className="signing__note">
-            You can save your own copy once you have signed. You will not need an account.
+            You can save your own copy once you have signed, or{' '}
+            <button className="signing__link" onClick={download}>open the original PDF</button>.
+            You will not need an account.
           </p>
         </section>
       )}

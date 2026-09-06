@@ -24,6 +24,7 @@ import { buildShowStats, progressPercent, isComplete, formatRunTime } from '../u
 import { showDJSongs } from '../utils/musicLibrary';
 import { getRolodexTerm } from '../utils/terminology';
 import { hostChoices } from '../utils/hostChoices';
+import { signerStatus } from '../utils/contracts';
 import type { SessionCredentials } from '../utils/session-vault';
 import { loadViewerKey, viewerUrl as buildViewerUrl } from '../utils/viewerAudio';
 import './ShowDetail.css';
@@ -578,6 +579,11 @@ export function ShowDetail({
         onSaveToRolodex={onSaveToRolodex}
         onChange={(performers) => handleUpdate({ performers })}
         onTargetChange={(performerTarget) => handleUpdate({ performerTarget })}
+        contractStatus={
+          settings.contracts?.length
+            ? (performer) => signerStatus(settings.signatureRequests ?? [], performer.name)
+            : undefined
+        }
         renderContracts={
           session && onUpdateSettings
             ? (performer) => (
