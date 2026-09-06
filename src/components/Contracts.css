@@ -313,3 +313,91 @@
     padding-inline: 9px;
   }
 }
+
+/* What the signer is asked for, beyond their name. */
+.contracts__fields {
+  margin: 20px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.contracts__fields-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+}
+
+.contracts__fields-note,
+.contracts__fields-empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.contracts__field-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+
+.contracts__field-req {
+  color: var(--text-muted);
+}
+
+.contracts__field-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.contracts__field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.contracts__field-row input[type='text'] {
+  flex: 1 1 12rem;
+  min-height: 44px;
+  font-size: 16px;
+}
+
+.contracts__field-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.contracts__answers {
+  margin: 6px 0 0;
+  display: grid;
+  gap: 4px;
+}
+
+.contracts__answer {
+  display: flex;
+  gap: 6px;
+  font-size: var(--text-sm);
+}
+
+.contracts__answer dt {
+  color: var(--text-muted);
+}
+
+.contracts__answer dd {
+  margin: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+}

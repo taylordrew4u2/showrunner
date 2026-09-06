@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import type { SignatureRecord } from '../types';
 import {
+  collectFieldAnswers,
   fetchSigningDocument,
   fetchSigningRequest,
+  missingRequiredFields,
   shortHash,
   signedFileName,
   submitSignature,
@@ -32,6 +34,9 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
   const [docUrl, setDocUrl] = useState<string | null>(null);
   const [signed, setSigned] = useState<SignatureRecord | null>(null);
   const [typedName, setTypedName] = useState('');
+  // Keyed by field id, so editing the contract's questions later cannot
+  // scramble what a signer typed.
+  const [values, setValues] = useState<Record<string, string>>({});
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,11 +65,18 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
   async function handleSign() {
     if (!signKey || !docUrl || !payload) return;
     const name = typedName.trim();
-    if (!name || !agreed) return;
+    const missing = missingRequiredFields(payload.fields, values);
+    if (!name || !agreed || missing.length > 0) return;
     setPhase('signing');
     setError(null);
     try {
-      const record = await submitSignature(token, signKey, name, docUrl);
+      const record = await submitSignature(
+        token,
+        signKey,
+        name,
+        docUrl,
+        collectFieldAnswers(payload.fields, values),
+      );
       setSigned(record);
       setPhase('done');
     } catch {
@@ -139,6 +151,16 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
           <p className="signing__done-line">
             {signed.typedName} · {new Date(signed.signedAt).toLocaleString()}
           </p>
+          {signed.fields && signed.fields.length > 0 && (
+            <dl className="signing__answers">
+              {signed.fields.map((f) => (
+                <div key={f.label} className="signing__answer">
+                  <dt>{f.label}</dt>
+                  <dd>{f.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
           <p className="signing__ref">Document reference {shortHash(signed.documentHash)}</p>
           <button className="btn btn--primary signing__cta" onClick={download}>
             Save a copy
@@ -163,6 +185,30 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
             />
           </label>
 
+          {(payload.fields ?? []).map((f) => (
+            <label className="signing__field" key={f.id}>
+              <span>
+                {f.label}
+                {!f.required && <em className="signing__optional"> optional</em>}
+              </span>
+              {f.multiline ? (
+                <textarea
+                  rows={3}
+                  value={values[f.id] ?? ''}
+                  placeholder={f.placeholder}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.id]: e.target.value }))}
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={values[f.id] ?? ''}
+                  placeholder={f.placeholder}
+                  onChange={(e) => setValues((v) => ({ ...v, [f.id]: e.target.value }))}
+                />
+              )}
+            </label>
+          ))}
+
           <label className="signing__agree">
             <input
               type="checkbox"
@@ -177,11 +223,23 @@ export function SigningPage({ token, signKey }: SigningPageProps) {
 
           <button
             className="btn btn--primary signing__cta"
-            disabled={!typedName.trim() || !agreed || !docUrl || phase === 'signing'}
+            disabled={
+              !typedName.trim() ||
+              !agreed ||
+              !docUrl ||
+              phase === 'signing' ||
+              missingRequiredFields(payload.fields, values).length > 0
+            }
             onClick={handleSign}
           >
             {phase === 'signing' ? 'Signing…' : 'Agree and sign'}
           </button>
+
+          {missingRequiredFields(payload.fields, values).length > 0 && (
+            <p className="signing__hint">
+              Still needed: {missingRequiredFields(payload.fields, values).join(', ')}
+            </p>
+          )}
 
           <p className="signing__note">
             You can save your own copy once you have signed. You will not need an account.

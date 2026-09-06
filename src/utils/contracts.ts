@@ -1,5 +1,5 @@
 import CryptoJS from 'crypto-js';
-import type { Contract, SignatureRecord, SignatureRequest } from '../types';
+import type { Contract, ContractField, SignatureRecord, SignatureRequest } from '../types';
 import { api } from './api';
 import { decryptWithKey, encryptWithKey } from './encryption';
 import { resolveMediaUrl } from './mediaStore';
@@ -34,6 +34,57 @@ export interface SigningPayload {
   /** Chunk count for the document in /api/sign-doc. */
   total: number;
   createdAt: string;
+  /** Extra details this contract asks the signer to fill in. */
+  fields?: ContractField[];
+}
+
+/**
+ * The details most agreements ask for beyond a name.
+ *
+ * Offered as a starting point when a contract is first set up — a producer can
+ * delete what does not apply, which is quicker than building the list from
+ * nothing.
+ */
+export function suggestedFields(): ContractField[] {
+  return [
+    { id: 'stage-name', label: 'Stage name', placeholder: 'If different from your legal name' },
+    { id: 'credit', label: 'How to credit you', placeholder: 'Name, pronouns, socials', multiline: true },
+    { id: 'email', label: 'Email', required: true },
+    { id: 'phone', label: 'Phone' },
+  ];
+}
+
+/** A blank question, ready for the producer to name. */
+export function newContractField(label = ''): ContractField {
+  return { id: randomToken().slice(0, 10), label };
+}
+
+/**
+ * The questions still unanswered that the signer cannot skip.
+ *
+ * Returned as labels rather than a boolean because the signer is told which
+ * ones — "Fill in Email" beats a disabled button with no explanation.
+ */
+export function missingRequiredFields(
+  fields: ContractField[] | undefined,
+  values: Record<string, string>,
+): string[] {
+  return (fields ?? [])
+    .filter((f) => f.required && !(values[f.id] ?? '').trim())
+    .map((f) => f.label.trim() || 'a detail');
+}
+
+/**
+ * What the signer typed, paired with the labels they saw and stripped of blanks
+ * — an empty answer to an optional question is not worth recording.
+ */
+export function collectFieldAnswers(
+  fields: ContractField[] | undefined,
+  values: Record<string, string>,
+): { label: string; value: string }[] {
+  return (fields ?? [])
+    .map((f) => ({ label: f.label.trim() || 'Detail', value: (values[f.id] ?? '').trim() }))
+    .filter((f) => f.value !== '');
 }
 
 /** A 256-bit URL-safe token or key. */
@@ -126,6 +177,7 @@ export async function sendForSignature(
     fileName: contract.fileName,
     total: chunks.length,
     createdAt: new Date().toISOString(),
+    fields: contract.fields?.length ? contract.fields : undefined,
   };
   await api.put('/api/sign', { token, payload: encryptWithKey(payload, key) }, auth);
 
@@ -244,10 +296,12 @@ export async function submitSignature(
   key: string,
   typedName: string,
   documentDataUrl: string,
+  fields: { label: string; value: string }[] = [],
 ): Promise<SignatureRecord> {
   const record: SignatureRecord = {
     signedAt: new Date().toISOString(),
     typedName: typedName.trim(),
+    fields: fields.length ? fields : undefined,
     documentHash: documentHash(documentDataUrl),
     userAgent: typeof navigator === 'undefined' ? undefined : navigator.userAgent.slice(0, 200),
   };

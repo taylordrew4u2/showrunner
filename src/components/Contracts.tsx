@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { AppSettings, Contract, SignatureRequest } from '../types';
+import type { AppSettings, Contract, ContractField, SignatureRequest } from '../types';
 import {
   alreadyPending,
   contractNameFromFile,
+  newContractField,
   refreshSignatures,
   requestsForContract,
   revokeSignature,
@@ -10,6 +11,7 @@ import {
   shortHash,
   signatureSummary,
   signingUrl,
+  suggestedFields,
 } from '../utils/contracts';
 import { generateId } from '../utils/id';
 import { uploadMedia, deleteMedia } from '../utils/mediaStore';
@@ -63,6 +65,7 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
   const [copied, setCopied] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [manualName, setManualName] = useState('');
+  const [editingFields, setEditingFields] = useState(false);
 
   const open = contracts.find((c) => c.id === openId) ?? null;
   const summary = signatureSummary(requests);
@@ -112,6 +115,9 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
         fileName: file.name,
         sizeBytes: file.size,
         uploadedAt: new Date().toISOString(),
+        // A sensible starting list — most agreements want at least a stage
+        // name and a credit line, and unwanted rows are one tap to remove.
+        fields: suggestedFields(),
       };
       onUpdateSettings({ ...settings, contracts: [contract, ...contracts] });
     } catch {
@@ -214,6 +220,14 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
     setOpenId(null);
   }
 
+  /** Save an edited question list onto the open contract. */
+  function updateFields(contract: Contract, fields: ContractField[]) {
+    onUpdateSettings({
+      ...settings,
+      contracts: contracts.map((c) => (c.id === contract.id ? { ...c, fields } : c)),
+    });
+  }
+
   // People from the Rolodex who have not already signed this one.
   const candidates = useMemo(() => {
     if (!open) return [];
@@ -229,6 +243,7 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
   if (open) {
     const sent = requestsForContract(requests, open.id);
     const openSummary = signatureSummary(sent);
+    const openFields = open.fields ?? [];
     return (
       <div className="page contracts">
         <PageHeader
@@ -238,7 +253,7 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
               ? 'Not sent to anyone yet'
               : `${openSummary.signed} of ${openSummary.total} signed`
           }
-          onBack={() => { setOpenId(null); setPicking(false); }}
+          onBack={() => { setOpenId(null); setPicking(false); setEditingFields(false); }}
           backLabel="Contracts"
         />
 
@@ -299,6 +314,96 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
           )}
         </div>
 
+        <section className="contracts__fields">
+          <div className="contracts__fields-head">
+            <h2 className="contracts__section-label">What the signer fills in</h2>
+            <button className="btn btn--ghost btn--sm" onClick={() => setEditingFields((v) => !v)}>
+              {editingFields ? 'Done' : 'Edit'}
+            </button>
+          </div>
+          <p className="contracts__fields-note">
+            Everyone is asked for their name. Add anything else this agreement needs — a stage
+            name, how they want to be credited, a payout address. Changes apply to links you
+            send from now on.
+          </p>
+
+          {editingFields ? (
+            <>
+              <div className="contracts__field-rows">
+                {(openFields).map((f, i) => (
+                  <div key={f.id} className="contracts__field-row">
+                    <input
+                      type="text"
+                      value={f.label}
+                      placeholder="What to ask for"
+                      onChange={(e) =>
+                        updateFields(
+                          open,
+                          openFields.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)),
+                        )
+                      }
+                    />
+                    <label className="contracts__field-toggle">
+                      <input
+                        type="checkbox"
+                        checked={!!f.required}
+                        onChange={(e) =>
+                          updateFields(
+                            open,
+                            openFields.map((x, j) =>
+                              j === i ? { ...x, required: e.target.checked } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <span>Required</span>
+                    </label>
+                    <label className="contracts__field-toggle">
+                      <input
+                        type="checkbox"
+                        checked={!!f.multiline}
+                        onChange={(e) =>
+                          updateFields(
+                            open,
+                            openFields.map((x, j) =>
+                              j === i ? { ...x, multiline: e.target.checked } : x,
+                            ),
+                          )
+                        }
+                      />
+                      <span>Long answer</span>
+                    </label>
+                    <button
+                      className="btn btn--ghost btn--sm"
+                      aria-label={`Remove ${f.label || 'this question'}`}
+                      onClick={() => updateFields(open, openFields.filter((_, j) => j !== i))}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button
+                className="btn btn--secondary btn--sm"
+                onClick={() => updateFields(open, [...openFields, newContractField()])}
+              >
+                Add a question
+              </button>
+            </>
+          ) : openFields.length === 0 ? (
+            <p className="contracts__fields-empty">Just their name and signature.</p>
+          ) : (
+            <ul className="contracts__field-list">
+              {openFields.map((f) => (
+                <li key={f.id}>
+                  {f.label.trim() || 'Untitled question'}
+                  {f.required && <span className="contracts__field-req"> · required</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {sent.length > 0 && (
           <section className="contracts__status">
             <h2 className="contracts__section-label">
@@ -318,6 +423,16 @@ export function Contracts({ settings, session, onBack, backLabel = 'Shows', onUp
                         ? `Signed ${fmtDate(r.signed.signedAt)} · ${shortHash(r.signed.documentHash)}`
                         : `Sent ${fmtDate(r.sentAt)}`}
                     </span>
+                    {r.signed?.fields?.length ? (
+                      <dl className="contracts__answers">
+                        {r.signed.fields.map((f) => (
+                          <div key={f.label} className="contracts__answer">
+                            <dt>{f.label}</dt>
+                            <dd>{f.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
                   </div>
                   {!r.signed && (
                     <button className="btn btn--ghost btn--sm" onClick={() => copyLink(r)}>

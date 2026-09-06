@@ -287,6 +287,23 @@ export interface DeletedItem {
 }
 
 /** A contract PDF the producer has uploaded, stored like any other media. */
+/**
+ * One thing a signer is asked to fill in, beyond their signature.
+ *
+ * Real agreements rarely stop at a name: a performer agreement wants the stage
+ * name and how they want to be credited, a release wants a mailing address, a
+ * W-9-adjacent form wants a business name. The producer decides the list per
+ * contract, and the signer fills it in on the same screen they sign on.
+ */
+export interface ContractField {
+  id: string;
+  label: string; // what the signer is asked, e.g. "Stage name"
+  placeholder?: string;
+  required?: boolean;
+  /** A roomier box, for credits and addresses that run past one line. */
+  multiline?: boolean;
+}
+
 export interface Contract {
   id: string;
   name: string; // what the producer calls it, e.g. "Performer Agreement"
@@ -294,12 +311,20 @@ export interface Contract {
   fileName: string;
   sizeBytes: number;
   uploadedAt: string;
+  /** Extra details this contract asks for. Absent on older contracts. */
+  fields?: ContractField[];
 }
 
 /** What a signer typed and agreed to, once they have signed. */
 export interface SignatureRecord {
   signedAt: string;
   typedName: string;
+  /**
+   * What the signer filled in, kept with the label they were shown rather than
+   * a field id, so the record still reads correctly after the contract's
+   * questions are edited or the contract itself is deleted.
+   */
+  fields?: { label: string; value: string }[];
   /** Hash of the exact bytes the signer was shown, so the copy can be proved. */
   documentHash: string;
   userAgent?: string;

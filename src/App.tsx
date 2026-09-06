@@ -1822,6 +1822,11 @@ export default function App() {
                   startInRunShow={startInRunShow}
                   onBack={handleBack}
                   onUpdate={handleUpdateShow}
+                  session={session ?? undefined}
+                  onUpdateSettings={(updated) => {
+                    setSettings(updated);
+                    saveSettings(updated);
+                  }}
                   onSaveToRolodex={handleSavePerformerToRolodex}
                   onSaveScheduleTemplate={handleSaveScheduleTemplate}
                   onDeleteScheduleTemplate={handleDeleteScheduleTemplate}
